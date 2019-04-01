@@ -17,7 +17,7 @@ from sensor_msgs.msg import LaserScan
 import cormodule
 from math import pi
 
-centro = None
+centro = (0,0)
 bridge = CvBridge()
 cv_image = None
 dif = None
@@ -29,12 +29,17 @@ laser_dist_left = []
 margem = 30
 atraso = 1.5E9
 area_blue = None
+media_blue = (0,0)
+margem_vertical = 60
+angle_for_list = None
+near_blue = False
 
 def cam_data(imagem):
 	global centro
 	global bridge
 	global cv_image
 	global dif
+	global media_blue	
 	
 	now = rospy.get_rostime()
 	imgtime = imagem.header.stamp
@@ -46,7 +51,7 @@ def cam_data(imagem):
 		antes = time.clock()
 		cv_image = bridge.compressed_imgmsg_to_cv2(imagem, "bgr8")
 		cv_image = bridge.compressed_imgmsg_to_cv2(imagem, "bgr8")
-		centro_red, centro, media_blue, area_blue =  cormodule.identifica_cor(cv_image, margem)
+		centro_red, centro, media_blue, area_blue =  cormodule.identifica_cor(cv_image, margem, margem_vertical)
 		dif = centro_red[0]-centro[1]
 
 	except CvBridgeError as e:
@@ -63,6 +68,8 @@ def laser_data(dado):
 	global laser_dist_back
 	global laser_dist_right
 	global laser_dist_left
+	global angle_for_list
+	global near_blue
 
 	dist_list = dado.ranges
 
@@ -84,6 +91,11 @@ def laser_data(dado):
 	laser_dist_right.append(round(dist_list[269],2))
 	laser_dist_right.append(round(dist_list[270],2))
 	laser_dist_right.append(round(dist_list[271],2))
+
+	if angle_for_list is not None:
+		print(dist_list[angle_for_list])
+		if dist_list[angle_for_list] < 0.30 and dist_list[angle_for_list] != 0:
+			near_blue = True
 
 	# print(laser_dist)
 
@@ -112,17 +124,17 @@ if __name__=="__main__":
 			vel_right_following = Twist(Vector3(0.1,0,0), Vector3(0,0,-0.2))
 			vel_right_avoid = Twist(Vector3(0,0,0), Vector3(0,0,-pi/8))
 			vel_left_avoid = Twist(Vector3(0,0,0), Vector3(0,0,pi/8))
+			vel_near_blue = Twist(Vector3(0,0,0), Vector3(0,0,3))
 
 			if not false_positive:
-				if dif < -margem:
-					vel_saida.publish(vel_left_following)
-
-				elif dif > margem:
-					vel_saida.publish(vel_right_following)
-
-				else:
-					vel_saida.publish(vel_foward)
-				print(area_blue)
+				# if dif < -margem:
+				# 	vel_saida.publish(vel_left_following)
+				# 
+				# elif dif > margem:
+				# 	vel_saida.publish(vel_right_following)
+				# 
+				# else:
+				# 	vel_saida.publish(vel_foward)
 
 				if bump == 1:
 					print('l')
@@ -167,35 +179,55 @@ if __name__=="__main__":
 					vel_saida.publish(vel_right_avoid)
 					rospy.sleep(4)
 
+				if near_blue:
+					vel_saida.publish(vel_near_blue)
+					rospy.sleep(4)
+					near_blue = False
+					vel_saida.publish(vel_parado)
+					rospy.sleep(0.2)
 
 
-				for i in laser_dist:
-					if i < 0.3 and i != 0:
-						vel_saida.publish(vel_left_avoid)
-						rospy.sleep(1)
-						laser_dist = []
-						vel_saida.publish(vel_parado)
+				if media_blue[1] > (centro[0] - 2*margem_vertical) and media_blue[1] < (centro[0] - 40):
+					angle = media_blue[0]/10
+					angle_for_list = -(angle - 32)
+					# print("centro x tela: " + str(centro[1]*2))
+					# print("centro x azul: " + str(media_blue[0]))
+					# print("angle??: " + str(angle))
+					# print("angle for list: " + str(angle_for_list))
+					# print('')
 
-				for i in laser_dist_left:
-					if i < 0.3 and i != 0:
-						vel_saida.publish(vel_left_avoid)
-						rospy.sleep(1)
-						laser_dist_left = []
-						vel_saida.publish(vel_parado)
 
-				for i in laser_dist_right:
-					if i < 0.3 and i != 0:
-						vel_saida.publish(vel_right_avoid)
-						rospy.sleep(1)
-						laser_dist_left = []
-						vel_saida.publish(vel_parado)
 
-				for i in laser_dist_back:
-					if i < 0.15 and i != 0:
-						vel_saida.publish(vel_foward_fast)
-						rospy.sleep(2)
-						laser_dist_back = []
-						vel_saida.publish(vel_parado)
+				# for i in laser_dist:
+				# 	if i < 0.3 and i != 0:
+				# 		vel_saida.publish(vel_left_avoid)
+				# 		rospy.sleep(1)
+				# 		laser_dist = []
+				# 		vel_saida.publish(vel_parado)
+
+				# for i in laser_dist_left:
+				# 	if i < 0.3 and i != 0:
+				# 		vel_saida.publish(vel_left_avoid)
+				# 		rospy.sleep(1)
+				# 		laser_dist_left = []
+				# 		vel_saida.publish(vel_parado)
+
+				# for i in laser_dist_right:
+				# 	if i < 0.3 and i != 0:
+				# 		vel_saida.publish(vel_right_avoid)
+				# 		rospy.sleep(1)
+				# 		laser_dist_left = []
+				# 		vel_saida.publish(vel_parado)
+
+				# for i in laser_dist_back:
+				# 	if i < 0.15 and i != 0:
+				# 		vel_saida.publish(vel_foward_fast)
+				# 		rospy.sleep(2)
+				# 		laser_dist_back = []
+				# 		vel_saida.publish(vel_parado)
+
+
+
 
 				rospy.sleep(0.1)
 
@@ -210,6 +242,8 @@ if __name__=="__main__":
 				laser_dist_right = []
 				laser_dist_left = []
 				laser_list_reset_timer = 0
+			angle_for_list = None
+			angle = None
 			bump = None
 
 
