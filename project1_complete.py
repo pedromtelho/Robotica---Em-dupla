@@ -60,6 +60,7 @@ def cam_data(imagem):
 
 def bumper_data(dado):
 	global bump
+
 	bump = dado.data
 
 
@@ -97,7 +98,6 @@ def laser_data(dado):
 		if dist_list[angle_for_list] < 0.30 and dist_list[angle_for_list] != 0:
 			near_blue = True
 
-	# print(laser_dist)
 
 
 if __name__=="__main__":
@@ -127,17 +127,17 @@ if __name__=="__main__":
 			vel_near_blue = Twist(Vector3(0,0,0), Vector3(0,0,3))
 
 			if not false_positive:
-				# if dif < -margem:
-				# 	vel_saida.publish(vel_left_following)
-				# 
-				# elif dif > margem:
-				# 	vel_saida.publish(vel_right_following)
-				# 
-				# else:
-				# 	vel_saida.publish(vel_foward)
+				if dif < -margem:
+					vel_saida.publish(vel_left_following)
+				
+				elif dif > margem:
+					vel_saida.publish(vel_right_following)
+				
+				else:
+					vel_saida.publish(vel_foward)
 
 				if bump == 1:
-					print('l')
+					bump = None
 					vel_saida.publish(vel_tras)
 					rospy.sleep(1)
 					vel_saida.publish(vel_right_avoid)
@@ -148,6 +148,7 @@ if __name__=="__main__":
 					rospy.sleep(4)
 
 				if bump == 2:
+					bump = None
 					vel_saida.publish(vel_tras)
 					rospy.sleep(1)
 					vel_saida.publish(vel_right_avoid)
@@ -157,8 +158,8 @@ if __name__=="__main__":
 					vel_saida.publish(vel_left_avoid)
 					rospy.sleep(4)
 
-
 				if bump == 3 :
+					bump = None
 					vel_saida.publish(vel_tras)
 					rospy.sleep(2)
 					vel_saida.publish(vel_right_avoid)
@@ -167,9 +168,9 @@ if __name__=="__main__":
 					rospy.sleep(2)
 					vel_saida.publish(vel_right_avoid)
 					rospy.sleep(4)
-
 
 				if bump == 4 :
+					bump = None
 					vel_saida.publish(vel_tras)
 					rospy.sleep(2)
 					vel_saida.publish(vel_right_avoid)
@@ -186,54 +187,52 @@ if __name__=="__main__":
 					vel_saida.publish(vel_parado)
 					rospy.sleep(0.2)
 
-
 				if media_blue[1] > (centro[0] - 2*margem_vertical) and media_blue[1] < (centro[0] - 40):
 					angle = media_blue[0]/10
 					angle_for_list = -(angle - 32)
-					# print("centro x tela: " + str(centro[1]*2))
-					# print("centro x azul: " + str(media_blue[0]))
-					# print("angle??: " + str(angle))
-					# print("angle for list: " + str(angle_for_list))
-					# print('')
 
+				for i in laser_dist:
+					if i < 0.4 and i != 0:
+						print('frente')
+						laser_dist = []
+						vel_saida.publish(vel_right_avoid)
+						rospy.sleep(1)
+						vel_saida.publish(vel_parado)
+						break
 
+				for i in laser_dist_left:
+					if i < 0.3 and i != 0:
+						print('left')
+						laser_dist_left = []
+						vel_saida.publish(vel_left_avoid)
+						rospy.sleep(1)
+						vel_saida.publish(vel_parado)
+						break
 
-				# for i in laser_dist:
-				# 	if i < 0.3 and i != 0:
-				# 		vel_saida.publish(vel_left_avoid)
-				# 		rospy.sleep(1)
-				# 		laser_dist = []
-				# 		vel_saida.publish(vel_parado)
+				for i in laser_dist_right:
+					if i < 0.3 and i != 0:
+						print('right')
+						laser_dist_right = []
+						vel_saida.publish(vel_right_avoid)
+						rospy.sleep(1)
+						vel_saida.publish(vel_parado)
+						break
 
-				# for i in laser_dist_left:
-				# 	if i < 0.3 and i != 0:
-				# 		vel_saida.publish(vel_left_avoid)
-				# 		rospy.sleep(1)
-				# 		laser_dist_left = []
-				# 		vel_saida.publish(vel_parado)
-
-				# for i in laser_dist_right:
-				# 	if i < 0.3 and i != 0:
-				# 		vel_saida.publish(vel_right_avoid)
-				# 		rospy.sleep(1)
-				# 		laser_dist_left = []
-				# 		vel_saida.publish(vel_parado)
-
-				# for i in laser_dist_back:
-				# 	if i < 0.15 and i != 0:
-				# 		vel_saida.publish(vel_foward_fast)
-				# 		rospy.sleep(2)
-				# 		laser_dist_back = []
-				# 		vel_saida.publish(vel_parado)
-
-
-
+				for i in laser_dist_back:
+					if i < 0.15 and i != 0:
+						print('back')
+						laser_dist_back = []
+						vel_saida.publish(vel_foward_fast)
+						rospy.sleep(2)
+						vel_saida.publish(vel_parado)
+						break
 
 				rospy.sleep(0.1)
 
 
-			if false_positive:
+			if false_positive and bump != 0:
 				false_positive = False
+				bump = None
 
 			laser_list_reset_timer += 1
 			if laser_list_reset_timer == 5:
@@ -242,9 +241,12 @@ if __name__=="__main__":
 				laser_dist_right = []
 				laser_dist_left = []
 				laser_list_reset_timer = 0
+			if laser_list_reset_timer == 2 or laser_list_reset_timer == 4:
+				bump = None
+
+
 			angle_for_list = None
 			angle = None
-			bump = None
 
 
 
