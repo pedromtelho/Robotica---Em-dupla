@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 # -*- coding:utf-8 -*-
 
 
@@ -14,8 +14,14 @@ from sensor_msgs.msg import Image, CompressedImage
 from std_msgs.msg import UInt8
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import LaserScan
-import cormodule
 from math import pi
+import visao_module
+import cormodule
+
+
+off = True
+# off = False
+
 
 centro = (0,0)
 bridge = CvBridge()
@@ -33,14 +39,16 @@ media_blue = (0,0)
 margem_vertical = 60
 angle_for_list = None
 near_blue = False
+see_botle = False
 
 def cam_data(imagem):
 	global centro
 	global bridge
 	global cv_image
 	global dif
-	global media_blue	
-	
+	global media_blue
+	global see_botle
+
 	now = rospy.get_rostime()
 	imgtime = imagem.header.stamp
 	lag = now-imgtime # calcula o lag
@@ -50,9 +58,29 @@ def cam_data(imagem):
 	try:
 		antes = time.clock()
 		cv_image = bridge.compressed_imgmsg_to_cv2(imagem, "bgr8")
-		cv_image = bridge.compressed_imgmsg_to_cv2(imagem, "bgr8")
 		centro_red, centro, media_blue, area_blue =  cormodule.identifica_cor(cv_image, margem, margem_vertical)
-		dif = centro_red[0]-centro[1]
+		centro, imagem, results =  visao_module.processa(cv_image)
+
+		# print(results[0])
+		for e in results:
+			if e[0]== "bird":
+				print(e)
+				pass
+				# print(e)
+				# print('')
+				xy0 = e[2]
+				xy1 = e[3]
+				# print('')
+				# print('')
+				# print('')
+				# print('')
+				x0, y0 = xy0
+				x1, y1 = xy1
+				centro_botle = (x1-x0, y1-y0)
+				# print(centro_botle)
+				dif = centro_botle[0]-centro[1]
+				# print(dif)
+				# print('')
 
 	except CvBridgeError as e:
 		print('ex', e)
@@ -92,12 +120,14 @@ def laser_data(dado):
 	laser_dist_right.append(round(dist_list[269],2))
 	laser_dist_right.append(round(dist_list[270],2))
 	laser_dist_right.append(round(dist_list[271],2))
-
-	if angle_for_list is not None:
-		print(dist_list[angle_for_list])
-		if dist_list[angle_for_list] < 0.30 and dist_list[angle_for_list] != 0:
-			near_blue = True
-
+	try:
+		if angle_for_list is not None:
+			print(dist_list[angle_for_list])
+			print(angle_for_list)
+			print('')
+			if dist_list[angle_for_list] < 1 and dist_list[angle_for_list] != 0:
+				near_blue = True
+	except:''
 
 
 if __name__=="__main__":
@@ -124,110 +154,115 @@ if __name__=="__main__":
 			vel_right_following = Twist(Vector3(0.1,0,0), Vector3(0,0,-0.2))
 			vel_right_avoid = Twist(Vector3(0,0,0), Vector3(0,0,-pi/8))
 			vel_left_avoid = Twist(Vector3(0,0,0), Vector3(0,0,pi/8))
-			vel_near_blue = Twist(Vector3(0,0,0), Vector3(0,0,3))
+			vel_near_blue = Twist(Vector3(0,0,0), Vector3(0,0,pi/2))
+			vel_left_avoid_tapao = Twist(Vector3(0.2,0,0), Vector3(0,0,-1))
+			vel_right_avoid_tapao = Twist(Vector3(0.2,0,0), Vector3(0,0,1))
 
-			if not false_positive:
+
+			if not false_positive and not off:
 				if dif < -margem:
+					# print('vemrlho para a esquerda')
 					vel_saida.publish(vel_left_following)
 				
 				elif dif > margem:
+					# print('vermelho para a direita')
 					vel_saida.publish(vel_right_following)
 				
 				else:
 					vel_saida.publish(vel_foward)
 
 				if bump == 1:
+					print('bump 1')
 					bump = None
-					vel_saida.publish(vel_tras)
+					vel_saida.publish(vel_foward)
 					rospy.sleep(1)
-					vel_saida.publish(vel_right_avoid)
-					rospy.sleep(4)
-					vel_saida.publish(vel_tras)
-					rospy.sleep(1)
-					vel_saida.publish(vel_left_avoid)
-					rospy.sleep(4)
+					vel_saida.publish(vel_parado)
+
 
 				if bump == 2:
+					print('bump 2')
 					bump = None
-					vel_saida.publish(vel_tras)
+					vel_saida.publish(vel_foward)
 					rospy.sleep(1)
-					vel_saida.publish(vel_right_avoid)
-					rospy.sleep(4)
-					vel_saida.publish(vel_tras)
-					rospy.sleep(1)
-					vel_saida.publish(vel_left_avoid)
-					rospy.sleep(4)
+					vel_saida.publish(vel_parado)
+
 
 				if bump == 3 :
 					bump = None
+					print("bump 3")
 					vel_saida.publish(vel_tras)
 					rospy.sleep(2)
 					vel_saida.publish(vel_right_avoid)
 					rospy.sleep(4)
 					vel_saida.publish(vel_tras)
 					rospy.sleep(2)
-					vel_saida.publish(vel_right_avoid)
+					vel_saida.publish(vel_left_avoid)
 					rospy.sleep(4)
+					vel_saida.publish(vel_parado)
 
 				if bump == 4 :
 					bump = None
+					print('bump 4')
 					vel_saida.publish(vel_tras)
 					rospy.sleep(2)
 					vel_saida.publish(vel_right_avoid)
 					rospy.sleep(4)
 					vel_saida.publish(vel_tras)
 					rospy.sleep(2)
-					vel_saida.publish(vel_right_avoid)
+					vel_saida.publish(vel_left_avoid)
 					rospy.sleep(4)
+					vel_saida.publish(vel_parado)
+
 
 				if near_blue:
+					print("perto de azul")
 					vel_saida.publish(vel_near_blue)
-					rospy.sleep(4)
+					rospy.sleep(2)
 					near_blue = False
 					vel_saida.publish(vel_parado)
-					rospy.sleep(0.2)
+					rospy.sleep(0.01)
 
 				if media_blue[1] > (centro[0] - 2*margem_vertical) and media_blue[1] < (centro[0] - 40):
 					angle = media_blue[0]/10
-					angle_for_list = -(angle - 32)
+					angle_for_list = -(angle-32)
 
 				for i in laser_dist:
 					if i < 0.4 and i != 0:
-						print('frente')
+						print('lida: obstaculo a frente')
 						laser_dist = []
-						vel_saida.publish(vel_right_avoid)
+						vel_saida.publish(vel_tras)
 						rospy.sleep(1)
 						vel_saida.publish(vel_parado)
 						break
 
 				for i in laser_dist_left:
 					if i < 0.3 and i != 0:
-						print('left')
+						print('lida: obstaculo esquerda')
 						laser_dist_left = []
-						vel_saida.publish(vel_left_avoid)
+						vel_saida.publish(vel_left_avoid_tapao)
 						rospy.sleep(1)
 						vel_saida.publish(vel_parado)
 						break
 
 				for i in laser_dist_right:
 					if i < 0.3 and i != 0:
-						print('right')
+						print('lida: obstaculo a direita')
 						laser_dist_right = []
-						vel_saida.publish(vel_right_avoid)
+						vel_saida.publish(vel_right_avoid_tapao)
 						rospy.sleep(1)
 						vel_saida.publish(vel_parado)
 						break
 
 				for i in laser_dist_back:
 					if i < 0.15 and i != 0:
-						print('back')
+						print('lida: obstaculo a traz')
 						laser_dist_back = []
 						vel_saida.publish(vel_foward_fast)
 						rospy.sleep(2)
 						vel_saida.publish(vel_parado)
 						break
 
-				rospy.sleep(0.1)
+				rospy.sleep(0.01)
 
 
 			if false_positive and bump != 0:
@@ -247,7 +282,4 @@ if __name__=="__main__":
 
 			angle_for_list = None
 			angle = None
-
-
-
-			
+			see_botle = False
