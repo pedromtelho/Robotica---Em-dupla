@@ -17,6 +17,13 @@ from sensor_msgs.msg import LaserScan
 from math import pi
 import visao_module
 import cormodule
+from imutils.video import VideoStream
+from imutils.video import FPS
+import argparse
+import imutils
+import numpy as np
+import argparse
+import cv2
 
 
 off = True
@@ -39,7 +46,50 @@ media_blue = (0,0)
 margem_vertical = 60
 angle_for_list = None
 near_blue = False
-see_botle = False
+see_bottle = False
+tracking_bottle = False
+consecutive_frame = 0
+xy0 = (0,0)
+xy1 = (0,0)
+fps = None
+initBB = ((0,0),(0,0))
+
+
+# construct the argument parser and parse the arguments
+ap = argparse.ArgumentParser()
+ap.add_argument("-v", "--video", type=str,
+	help="path to input video file")
+ap.add_argument("-t", "--tracker", type=str, default="kcf",
+	help="OpenCV object tracker type")
+args = vars(ap.parse_args())
+
+# extract the OpenCV version info
+(major, minor) = cv2.__version__.split(".")[:2]
+
+# if we are using OpenCV 3.2 OR BEFORE, we can use a special factory
+# function to create our object tracker
+if int(major) == 3 and int(minor) < 3:
+	tracker = cv2.Tracker_create(args["tracker"].upper())
+
+# otherwise, for OpenCV 3.3 OR NEWER, we need to explicity call the
+# approrpiate object tracker constructor:
+else:
+	# initialize a dictionary that maps strings to their corresponding
+	# OpenCV object tracker implementations
+	OPENCV_OBJECT_TRACKERS = {
+		"csrt": cv2.TrackerCSRT_create,
+		"kcf": cv2.TrackerKCF_create,
+		"boosting": cv2.TrackerBoosting_create,
+		"mil": cv2.TrackerMIL_create,
+		"tld": cv2.TrackerTLD_create,
+		"medianflow": cv2.TrackerMedianFlow_create,
+		"mosse": cv2.TrackerMOSSE_create
+	}
+
+	# grab the appropriate object tracker using our dictionary of
+	# OpenCV object tracker objects
+	tracker = OPENCV_OBJECT_TRACKERS[args["tracker"]]()
+
 
 def cam_data(imagem):
 	global centro
@@ -47,7 +97,13 @@ def cam_data(imagem):
 	global cv_image
 	global dif
 	global media_blue
-	global see_botle
+	global see_bottle
+	global tracking_bottle
+	global consecutive_frame
+	global xy1
+	global xy0
+	global fps
+	global initBB
 
 	now = rospy.get_rostime()
 	imgtime = imagem.header.stamp
@@ -59,28 +115,40 @@ def cam_data(imagem):
 		antes = time.clock()
 		cv_image = bridge.compressed_imgmsg_to_cv2(imagem, "bgr8")
 		centro_red, centro, media_blue, area_blue =  cormodule.identifica_cor(cv_image, margem, margem_vertical)
-		centro, imagem, results =  visao_module.processa(cv_image)
 
-		# print(results[0])
-		for e in results:
-			if e[0]== "bird":
-				print(e)
-				pass
-				# print(e)
-				# print('')
-				xy0 = e[2]
-				xy1 = e[3]
-				# print('')
-				# print('')
-				# print('')
-				# print('')
-				x0, y0 = xy0
-				x1, y1 = xy1
-				centro_botle = (x1-x0, y1-y0)
-				# print(centro_botle)
-				dif = centro_botle[0]-centro[1]
-				# print(dif)
-				# print('')
+		if not tracking_bottle:
+			centro, cv_image, results =  visao_module.processa(cv_image)
+			for e in results:
+				if e[0]== "bottle":
+					xy0 = e[2]
+					xy1 = e[3]
+					x0, y0 = xy0
+					x1, y1 = xy1
+					centro_bottle = (x1-x0, y1-y0)
+					# dif = centro_bottle[0]-centro[1]
+					saw_bottle = True
+					consecutive_frame += 1
+			if consecutive_frame == 10:
+				tracking_bottle = True
+				initBB = (x0,y0,x1,y1)
+		if tracking_bottle:
+			tracker.init(cv_image, initBB)
+
+			fps = FPS().start()
+			(success, box) = tracker.update(cv_image)
+			if success:
+				(x, y, w, h) = [int(v) for v in box]
+				cv2.rectangle(cv_image, (x, y), (x + w, y + h),
+					(0, 255, 0), 2)
+				centro_bottle = (x+w/2, y+h/2)
+				dif = centro_bottle[0]-centro[1]
+
+			fps.update()
+			fps.stop()
+
+		cv2.imshow("frame", cv_image)
+
+
 
 	except CvBridgeError as e:
 		print('ex', e)
@@ -282,4 +350,4 @@ if __name__=="__main__":
 
 			angle_for_list = None
 			angle = None
-			see_botle = False
+			see_bottle = False
