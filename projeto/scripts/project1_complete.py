@@ -26,8 +26,8 @@ import argparse
 import cv2
 
 
-off = True
-# off = False
+# off = True
+off = False
 
 
 centro = (0,0)
@@ -54,6 +54,7 @@ xy1 = (0,0)
 fps = None
 initBB = ((0,0),(0,0))
 
+coisa = raw_input("escolha o objeto: ")
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
@@ -115,25 +116,23 @@ def cam_data(imagem):
 		antes = time.clock()
 		cv_image = bridge.compressed_imgmsg_to_cv2(imagem, "bgr8")
 		centro_red, centro, media_blue, area_blue =  cormodule.identifica_cor(cv_image, margem, margem_vertical)
-
+		# print(consecutive_frame)
 		if not tracking_bottle:
 			centro, cv_image, results =  visao_module.processa(cv_image)
 			for e in results:
-				if e[0]== "bottle":
+				if e[0]== coisa:
 					xy0 = e[2]
 					xy1 = e[3]
 					x0, y0 = xy0
 					x1, y1 = xy1
-					centro_bottle = (x1-x0, y1-y0)
-					# dif = centro_bottle[0]-centro[1]
+					dif = None
 					saw_bottle = True
 					consecutive_frame += 1
-			if consecutive_frame == 10:
+			if consecutive_frame >= 10:
 				tracking_bottle = True
-				initBB = (x0,y0,x1,y1)
+				initBB = (x0,y0,x1-x0,y1-y0)
 		if tracking_bottle:
 			tracker.init(cv_image, initBB)
-
 			fps = FPS().start()
 			(success, box) = tracker.update(cv_image)
 			if success:
@@ -142,7 +141,9 @@ def cam_data(imagem):
 					(0, 255, 0), 2)
 				centro_bottle = (x+w/2, y+h/2)
 				dif = centro_bottle[0]-centro[1]
-
+			if not success:
+				tracking_bottle = False
+				consecutive_frame = 0
 			fps.update()
 			fps.stop()
 
@@ -228,36 +229,41 @@ if __name__=="__main__":
 
 
 			if not false_positive and not off:
-				if dif < -margem:
-					# print('vemrlho para a esquerda')
-					vel_saida.publish(vel_left_following)
+				if tracking_bottle:
+					if dif == None:
+						vel_saida.publish(vel_parado)
+					if dif < -margem:
+						# print('vemrlho para a esquerda')
+						vel_saida.publish(vel_left_following)
+					
+					elif dif > margem:
+						# print('vermelho para a direita')
+						vel_saida.publish(vel_right_following)
 				
-				elif dif > margem:
-					# print('vermelho para a direita')
-					vel_saida.publish(vel_right_following)
-				
-				else:
+					else:
+						vel_saida.publish(vel_foward)
+				if not tracking_bottle:
+					vel_saida.publish(vel_parado)
+
+				if bump == 3:
+					print('bump 3')
+					bump = None
 					vel_saida.publish(vel_foward)
+					rospy.sleep(1)
+					vel_saida.publish(vel_parado)
+
+
+				if bump == 4:
+					print('bump 4')
+					bump = None
+					vel_saida.publish(vel_foward)
+					rospy.sleep(1)
+					vel_saida.publish(vel_parado)
+
 
 				if bump == 1:
-					print('bump 1')
 					bump = None
-					vel_saida.publish(vel_foward)
-					rospy.sleep(1)
-					vel_saida.publish(vel_parado)
-
-
-				if bump == 2:
-					print('bump 2')
-					bump = None
-					vel_saida.publish(vel_foward)
-					rospy.sleep(1)
-					vel_saida.publish(vel_parado)
-
-
-				if bump == 3 :
-					bump = None
-					print("bump 3")
+					print("bump 1")
 					vel_saida.publish(vel_tras)
 					rospy.sleep(2)
 					vel_saida.publish(vel_right_avoid)
@@ -268,9 +274,9 @@ if __name__=="__main__":
 					rospy.sleep(4)
 					vel_saida.publish(vel_parado)
 
-				if bump == 4 :
+				if bump == 2:
 					bump = None
-					print('bump 4')
+					print('bump 2')
 					vel_saida.publish(vel_tras)
 					rospy.sleep(2)
 					vel_saida.publish(vel_right_avoid)
@@ -295,7 +301,7 @@ if __name__=="__main__":
 					angle_for_list = -(angle-32)
 
 				for i in laser_dist:
-					if i < 0.4 and i != 0:
+					if i < 0.3 and i != 0:
 						print('lida: obstaculo a frente')
 						laser_dist = []
 						vel_saida.publish(vel_tras)

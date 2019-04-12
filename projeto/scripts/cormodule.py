@@ -113,7 +113,7 @@ def identifica_cor(frame, margem, margem_vertical):
 
 
 
-	cv2.imshow('video', frame)
+	# cv2.imshow('aaaa', frame)
 	#cv2.imshow('seg', segmentado_cor)
 	cv2.waitKey(1)
 	media = 0
