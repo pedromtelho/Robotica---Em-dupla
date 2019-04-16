@@ -39,7 +39,7 @@ laser_dist = []
 laser_dist_back = []
 laser_dist_right = []
 laser_dist_left = []
-margem = 30
+margem = 100
 atraso = 1.5E9
 area_blue = None
 media_blue = (0,0)
@@ -53,6 +53,7 @@ xy0 = (0,0)
 xy1 = (0,0)
 fps = None
 initBB = ((0,0),(0,0))
+v = 0
 
 coisa = raw_input("escolha o objeto: ")
 
@@ -201,7 +202,7 @@ def laser_data(dado):
 
 if __name__=="__main__":
 
-		rospy.init_node("follow_red")
+		rospy.init_node("project1_complete")
 
 		vel_saida = rospy.Publisher("/cmd_vel", Twist, queue_size = 3 )
 		see_image = rospy.Subscriber("/kamera", CompressedImage, cam_data)
@@ -228,23 +229,11 @@ if __name__=="__main__":
 			vel_right_avoid_tapao = Twist(Vector3(0.2,0,0), Vector3(0,0,1))
 
 
-			if not false_positive and not off:
-				if tracking_bottle:
-					if dif == None:
-						vel_saida.publish(vel_parado)
-					if dif < -margem:
-						# print('vemrlho para a esquerda')
-						vel_saida.publish(vel_left_following)
-					
-					elif dif > margem:
-						# print('vermelho para a direita')
-						vel_saida.publish(vel_right_following)
-				
-					else:
-						vel_saida.publish(vel_foward)
-				if not tracking_bottle:
-					vel_saida.publish(vel_parado)
+			# if cv2.waitKey(1) & 0xFF == ord('q'):
+			# 	off = False
 
+
+			if not false_positive and not off:
 				if bump == 3:
 					print('bump 3')
 					bump = None
@@ -301,6 +290,8 @@ if __name__=="__main__":
 					angle_for_list = -(angle-32)
 
 				for i in laser_dist:
+					v = round((0.25/2.75)*(i-3)+0.25,3)
+					vel_following = Twist(Vector3(v,0,0), Vector3(0,0,0))
 					if i < 0.3 and i != 0:
 						print('lida: obstaculo a frente')
 						laser_dist = []
@@ -308,7 +299,7 @@ if __name__=="__main__":
 						rospy.sleep(1)
 						vel_saida.publish(vel_parado)
 						break
-
+				print("V: " + str(v))
 				for i in laser_dist_left:
 					if i < 0.3 and i != 0:
 						print('lida: obstaculo esquerda')
@@ -335,6 +326,23 @@ if __name__=="__main__":
 						rospy.sleep(2)
 						vel_saida.publish(vel_parado)
 						break
+
+				if tracking_bottle:
+					if dif == None:
+						vel_saida.publish(vel_parado)
+					if dif < -margem:
+						# print('vemrlho para a esquerda')
+						vel_saida.publish(vel_left_following)
+					
+					elif dif > margem:
+						# print('vermelho para a direita')
+						vel_saida.publish(vel_right_following)
+				
+					else:
+						vel_saida.publish(vel_following)
+						
+				if not tracking_bottle:
+					vel_saida.publish(vel_parado)
 
 				rospy.sleep(0.01)
 
