@@ -39,7 +39,7 @@ laser_dist = []
 laser_dist_back = []
 laser_dist_right = []
 laser_dist_left = []
-margem = 100
+margem = 50
 atraso = 1.5E9
 area_blue = None
 media_blue = (0,0)
@@ -54,7 +54,14 @@ xy1 = (0,0)
 fps = None
 initBB = ((0,0),(0,0))
 v = 0
+started_tracker = False
 
+print('')
+CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat",
+	"bottle", "bus", "car", "cat", "chair", "cow", "diningtable",
+	"dog", "horse", "motorbike", "person", "pottedplant", "sheep",
+	"sofa", "train", "tvmonitor"]
+print(CLASSES)
 coisa = raw_input("escolha o objeto: ")
 
 # construct the argument parser and parse the arguments
@@ -106,6 +113,8 @@ def cam_data(imagem):
 	global xy0
 	global fps
 	global initBB
+	global started_tracker
+	global tracker
 
 	now = rospy.get_rostime()
 	imgtime = imagem.header.stamp
@@ -129,11 +138,15 @@ def cam_data(imagem):
 					dif = None
 					saw_bottle = True
 					consecutive_frame += 1
-			if consecutive_frame >= 10:
+			if consecutive_frame >= 5:
 				tracking_bottle = True
 				initBB = (x0,y0,x1-x0,y1-y0)
+				if not started_tracker:
+					if int(major) == 3 and int(minor) < 3:
+						tracker = cv2.Tracker_create(args["tracker"].upper())
+					tracker.init(cv_image, initBB)
+					started_tracker = True
 		if tracking_bottle:
-			tracker.init(cv_image, initBB)
 			fps = FPS().start()
 			(success, box) = tracker.update(cv_image)
 			if success:
@@ -145,12 +158,11 @@ def cam_data(imagem):
 			if not success:
 				tracking_bottle = False
 				consecutive_frame = 0
+				started_tracker = False
 			fps.update()
 			fps.stop()
 
 		cv2.imshow("frame", cv_image)
-
-
 
 	except CvBridgeError as e:
 		print('ex', e)
@@ -192,9 +204,9 @@ def laser_data(dado):
 	laser_dist_right.append(round(dist_list[271],2))
 	try:
 		if angle_for_list is not None:
-			print(dist_list[angle_for_list])
-			print(angle_for_list)
-			print('')
+			# print(dist_list[angle_for_list])
+			# print(angle_for_list)
+			# print('')
 			if dist_list[angle_for_list] < 1 and dist_list[angle_for_list] != 0:
 				near_blue = True
 	except:''
@@ -229,10 +241,6 @@ if __name__=="__main__":
 			vel_right_avoid_tapao = Twist(Vector3(0.2,0,0), Vector3(0,0,1))
 
 
-			# if cv2.waitKey(1) & 0xFF == ord('q'):
-			# 	off = False
-
-
 			if not false_positive and not off:
 				if bump == 3:
 					print('bump 3')
@@ -241,14 +249,12 @@ if __name__=="__main__":
 					rospy.sleep(1)
 					vel_saida.publish(vel_parado)
 
-
 				if bump == 4:
 					print('bump 4')
 					bump = None
 					vel_saida.publish(vel_foward)
 					rospy.sleep(1)
 					vel_saida.publish(vel_parado)
-
 
 				if bump == 1:
 					bump = None
@@ -276,7 +282,6 @@ if __name__=="__main__":
 					rospy.sleep(4)
 					vel_saida.publish(vel_parado)
 
-
 				if near_blue:
 					print("perto de azul")
 					vel_saida.publish(vel_near_blue)
@@ -290,16 +295,15 @@ if __name__=="__main__":
 					angle_for_list = -(angle-32)
 
 				for i in laser_dist:
-					v = round((0.25/2.75)*(i-3)+0.25,3)
+					v = round(3*(i/20*2**i),3)
 					vel_following = Twist(Vector3(v,0,0), Vector3(0,0,0))
-					if i < 0.3 and i != 0:
+					if i < 0.15 and i != 0:
 						print('lida: obstaculo a frente')
 						laser_dist = []
 						vel_saida.publish(vel_tras)
 						rospy.sleep(1)
 						vel_saida.publish(vel_parado)
 						break
-				print("V: " + str(v))
 				for i in laser_dist_left:
 					if i < 0.3 and i != 0:
 						print('lida: obstaculo esquerda')
@@ -331,11 +335,9 @@ if __name__=="__main__":
 					if dif == None:
 						vel_saida.publish(vel_parado)
 					if dif < -margem:
-						# print('vemrlho para a esquerda')
 						vel_saida.publish(vel_left_following)
 					
 					elif dif > margem:
-						# print('vermelho para a direita')
 						vel_saida.publish(vel_right_following)
 				
 					else:
